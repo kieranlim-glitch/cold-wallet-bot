@@ -65,7 +65,3 @@ def main():
 
 if __name__ == "__main__":
     main()
-```
-
-**File 4 — `requirements.txt`**
-```
