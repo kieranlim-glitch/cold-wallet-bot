@@ -1,14 +1,26 @@
 """
 Reads addresses.csv and validates each address against its network's
 expected format using address_validators.py. Also flags any address
-string that appears under more than one network_id — almost always
-a copy-paste mistake, not a legitimate case.
+string that appears under more than one network_id, and posts a
+summary to Slack.
 """
 
 import csv
+import os
 import sys
 from collections import defaultdict
+import requests
 from address_validators import validate_address
+
+SLACK_WEBHOOK_URL = os.environ.get("SLACK_WEBHOOK_URL", "")
+
+
+def post_to_slack(text: str):
+    if not SLACK_WEBHOOK_URL:
+        print("No SLACK_WEBHOOK_URL set, skipping Slack post.")
+        return
+    r = requests.post(SLACK_WEBHOOK_URL, json={"text": text}, timeout=20)
+    r.raise_for_status()
 
 
 def main():
@@ -31,8 +43,7 @@ def main():
             results.append((symbol, network_id, address, ok))
             address_to_networks[address].append((symbol, network_id))
 
-    print(f"\n{'Symbol':<8}{'Network':<14}{'Status':<10}Address")
-    print("-" * 90)
+    lines = [f"{'Symbol':<8}{'Network':<14}{'Status':<10}"]
     invalid_count = 0
     for symbol, network_id, address, ok in results:
         if ok is None:
@@ -42,24 +53,26 @@ def main():
         else:
             status = "INVALID"
             invalid_count += 1
-        print(f"{symbol:<8}{network_id:<14}{status:<10}{address}")
+        lines.append(f"{symbol:<8}{network_id:<14}{status:<10}")
 
-    print("-" * 90)
-    print(f"{invalid_count} invalid address(es) out of {len(results)} total.")
+    print("\n".join(lines))
+    print(f"\n{invalid_count} invalid address(es) out of {len(results)} total.")
 
-    duplicate_issues = 0
+    duplicate_lines = []
     for address, entries in address_to_networks.items():
         distinct_networks = {net for _, net in entries}
         if len(distinct_networks) > 1:
-            duplicate_issues += 1
             names = ", ".join(f"{sym} ({net})" for sym, net in entries)
-            print(f"\nDUPLICATE ADDRESS across chains: {address}")
-            print(f"  Used by: {names}")
+            duplicate_lines.append(f"• {address}: {names}")
 
-    if duplicate_issues:
-        print(f"\n{duplicate_issues} address(es) duplicated across different networks.")
+    slack_msg = "*Address Validation Report*\n```" + "\n".join(lines) + "```"
+    slack_msg += f"\n{invalid_count} invalid, {len(duplicate_lines)} duplicate(s)."
+    if duplicate_lines:
+        slack_msg += "\n\n:warning: *Duplicate addresses across chains:*\n" + "\n".join(duplicate_lines)
 
-    if invalid_count > 0 or duplicate_issues > 0:
+    post_to_slack(slack_msg)
+
+    if invalid_count > 0 or duplicate_lines:
         sys.exit(1)
 
 
