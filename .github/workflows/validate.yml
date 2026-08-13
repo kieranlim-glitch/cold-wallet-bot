@@ -1,4 +1,4 @@
-name: Validate Addresses
+name: Cold Wallet Balances
 on:
   workflow_dispatch:
 jobs:
@@ -13,7 +13,7 @@ jobs:
           python-version: "3.11"
       - name: Install dependencies
         run: pip install requests
-      - name: Run validator
-        run: python check_addresses.py addresses.csv
+      - name: Run balance report
+        run: python cold_wallet_report.py addresses.csv
         env:
           SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
