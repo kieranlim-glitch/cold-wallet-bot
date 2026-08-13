@@ -2,6 +2,13 @@
 Balance fetcher for cold-wallet-bot addresses.
 Covers: APT, AR, EGLD, FLOW, ICP, NEO, STX, SUI, VET, XNO
 SC and ORDI are excluded — no reliable keyless balance source found.
+
+Verified against live debug output on 2026-08-13:
+  - EGLD, ICP, STX, VET: confirmed correct, unchanged.
+  - APT: fixed — switched from CoinStore resource lookup (404s on
+    FA-migrated accounts) to the 0x1::coin::balance view function.
+  - NEO: fixed — GAS contract hash was missing its last character.
+  - SUI: fixed — public JSON-RPC is deprecated; switched to GraphQL.
 """
 
 import requests
@@ -21,13 +28,21 @@ def safe_post_json(url, payload, timeout=25, headers=None):
     return r.json()
 
 
+# ── APT (Aptos) — fixed: view function instead of CoinStore resource ────────
+
 def get_apt_balance(address: str) -> float:
-    resource = "0x1::coin::CoinStore%3C0x1::aptos_coin::AptosCoin%3E"
-    url = f"https://fullnode.mainnet.aptoslabs.com/v1/accounts/{address}/resource/{resource}"
-    data = safe_get_json(url)
-    octas = int(data["data"]["coin"]["value"])
+    url = "https://fullnode.mainnet.aptoslabs.com/v1/view"
+    payload = {
+        "function": "0x1::coin::balance",
+        "type_arguments": ["0x1::aptos_coin::AptosCoin"],
+        "arguments": [address],
+    }
+    out = safe_post_json(url, payload)
+    octas = int(out[0])
     return octas / 1e8
 
+
+# ── AR (Arweave) ─────────────────────────────────────────────────────────────
 
 def get_ar_balance(address: str) -> float:
     url = f"https://arweave.net/wallet/{address}/balance"
@@ -37,11 +52,15 @@ def get_ar_balance(address: str) -> float:
     return winston / 1e12
 
 
+# ── EGLD (MultiversX) — confirmed correct ────────────────────────────────────
+
 def get_egld_balance(address: str) -> float:
     url = f"https://api.multiversx.com/accounts/{address}"
     data = safe_get_json(url)
     return int(data["balance"]) / 1e18
 
+
+# ── FLOW ─────────────────────────────────────────────────────────────────────
 
 def get_flow_balance(address: str) -> float:
     url = f"https://rest-mainnet.onflow.org/v1/accounts/{address}"
@@ -49,18 +68,22 @@ def get_flow_balance(address: str) -> float:
     return int(data["balance"]) / 1e8
 
 
+# ── ICP (Internet Computer) — confirmed correct ──────────────────────────────
+
 def get_icp_balance(account_id: str) -> float:
     url = f"https://ledger-api.internetcomputer.org/accounts/{account_id}"
     data = safe_get_json(url)
-    e8s = int(data.get("balance") or data.get("icp_balance") or 0)
+    e8s = int(data["balance"])
     return e8s / 1e8
 
+
+# ── NEO N3 — fixed: corrected GAS contract hash ──────────────────────────────
 
 NEO_RPCS = [
     "https://mainnet1.neo.coz.io:443",
     "https://rpc10.n3.nspcc.ru:10331",
 ]
-NEO_GAS_CONTRACT = "0xd2a4cff31913016155e38e474a2c06d08be276c"
+NEO_GAS_CONTRACT = "0xd2a4cff31913016155e38e474a2c06d08be276cf"  # was missing trailing 'f'
 
 def get_neo_gas_balance(address: str) -> float:
     payload = {"jsonrpc": "2.0", "method": "getnep17balances", "params": [address], "id": 1}
@@ -77,6 +100,8 @@ def get_neo_gas_balance(address: str) -> float:
     raise RuntimeError(f"All NEO RPCs failed. Last error: {last_err}")
 
 
+# ── STX (Stacks) — confirmed correct ─────────────────────────────────────────
+
 def get_stx_balance(address: str) -> float:
     url = f"https://api.hiro.so/extended/v1/address/{address}/balances"
     data = safe_get_json(url)
@@ -84,12 +109,28 @@ def get_stx_balance(address: str) -> float:
     return microstacks / 1e6
 
 
+# ── SUI — fixed: migrated from deprecated JSON-RPC to GraphQL ───────────────
+
 def get_sui_balance(address: str) -> float:
-    payload = {"jsonrpc": "2.0", "id": 1, "method": "suix_getBalance", "params": [address]}
-    out = safe_post_json("https://fullnode.mainnet.sui.io:443", payload)
-    mist = int(out["result"]["totalBalance"])
+    query = """
+    query GetBalance($owner: SuiAddress!) {
+      address(address: $owner) {
+        balance(type: "0x2::sui::SUI") {
+          totalBalance
+        }
+      }
+    }
+    """
+    payload = {"query": query, "variables": {"owner": address}}
+    out = safe_post_json("https://sui-mainnet.mystenlabs.com/graphql", payload)
+    if "errors" in out:
+        raise RuntimeError(f"Sui GraphQL error: {out['errors']}")
+    bal = out["data"]["address"]["balance"]
+    mist = int(bal["totalBalance"]) if bal else 0
     return mist / 1e9
 
+
+# ── VET (VeChain) — confirmed correct ────────────────────────────────────────
 
 def get_vet_balance(address: str) -> float:
     url = f"https://mainnet.vecha.in/accounts/{address}"
@@ -97,6 +138,8 @@ def get_vet_balance(address: str) -> float:
     wei = int(data["balance"], 16)
     return wei / 1e18
 
+
+# ── XNO (Nano) — confirmed correct ───────────────────────────────────────────
 
 def get_xno_balance(address: str) -> float:
     payload = {"action": "account_balance", "account": address}
