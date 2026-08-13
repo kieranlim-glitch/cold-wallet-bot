@@ -1,7 +1,8 @@
 """
 Fetches live balances, compares against the most recent prior snapshot
 saved in balance_history.json, and posts a report (with day-over-day
-diffs) to Slack. Saves today's snapshot for tomorrow's comparison.
+absolute and percentage diffs) to Slack. Saves today's snapshot for
+tomorrow's comparison.
 """
 
 import csv
@@ -90,9 +91,15 @@ def main():
         current = results[sym]
         line = f"{sym:<8} {current:>15,.4f}"
         if prior_date and sym in prior_balances:
-            diff = current - prior_balances[sym]
+            prior = prior_balances[sym]
+            diff = current - prior
             sign = "+" if diff >= 0 else ""
-            line += f"  ({sign}{diff:,.4f})"
+            if prior != 0:
+                pct = (diff / prior) * 100
+                pct_str = f"{sign}{pct:,.2f}%"
+            else:
+                pct_str = "N/A"
+            line += f"  ({sign}{diff:,.4f}, {pct_str})"
         lines.append(line)
 
     header = f"*Cold wallet balances* (vs {prior_date})" if prior_date else "*Cold wallet balances* (no prior snapshot yet)"
