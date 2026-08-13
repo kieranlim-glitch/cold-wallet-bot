@@ -83,49 +83,11 @@ def is_valid_arweave(addr: str) -> bool:
     return re.match(r"^[A-Za-z0-9_-]+$", addr) is not None
 
 
-def is_valid_multiversx(addr: str) -> bool:
-    if len(addr) != 62:
-        return False
-    return _bech32_decode(addr, expected_hrp="erd")
-
-
-def is_valid_flow(addr: str) -> bool:
-    if not addr.startswith("0x"):
-        return False
-    return _is_hex(addr[2:], expected_len=16)
-
-
 def is_valid_icp(addr: str) -> bool:
     if _is_hex(addr, expected_len=64):
         return True
     principal_re = re.compile(r"^[a-z0-9]{5}(-[a-z0-9]{5}){9,}(-[a-z0-9]{1,5})?$")
     return bool(principal_re.match(addr))
-
-
-def is_valid_neo(addr: str) -> bool:
-    if len(addr) != 34 or not addr.startswith("N"):
-        return False
-    return bool(BASE58_RE.match(addr))
-
-
-def is_valid_ordi_brc20(addr: str) -> bool:
-    if addr.startswith("bc1p"):
-        return len(addr) == 62 and _bech32_decode(addr, expected_hrp="bc", allow_bech32m=True)
-    if addr.startswith("bc1q"):
-        return _bech32_decode(addr, expected_hrp="bc", allow_bech32m=False)
-    if addr.startswith(("1", "3")):
-        return 25 <= len(addr) <= 34 and bool(BASE58_RE.match(addr))
-    return False
-
-
-def is_valid_siacoin(addr: str) -> bool:
-    return _is_hex(addr, expected_len=76)
-
-
-def is_valid_stacks(addr: str) -> bool:
-    if not addr.startswith(("SP", "SM")):
-        return False
-    return 38 <= len(addr) <= 41 and bool(re.match(r"^[A-Z0-9]+$", addr))
 
 
 def is_valid_sui(addr: str) -> bool:
@@ -138,29 +100,18 @@ def is_valid_vechain(addr: str) -> bool:
     return _evm_style_valid(addr)
 
 
-def is_valid_nano(addr: str) -> bool:
-    if not addr.startswith("nano_"):
-        return False
-    return len(addr) == 65
-    
 def is_valid_zilliqa(addr: str) -> bool:
     """Zilliqa: bech32, prefix 'zil1', standard bech32 (not bech32m)."""
     return _bech32_decode(addr, expected_hrp="zil")
 
+
 VALIDATORS = {
-    "aptos":       is_valid_aptos,
-    "arweave":     is_valid_arweave,
-    "multiversx":  is_valid_multiversx,
-    "flow":        is_valid_flow,
-    "icp":         is_valid_icp,
-    "neo":         is_valid_neo,
-    "brc20":       is_valid_ordi_brc20,
-    "siacoin":     is_valid_siacoin,
-    "stacks":      is_valid_stacks,
-    "sui":         is_valid_sui,
-    "vechain":     is_valid_vechain,
-    "nano":        is_valid_nano,
-    "zilliqa":     is_valid_zilliqa,
+    "aptos":   is_valid_aptos,
+    "arweave": is_valid_arweave,
+    "icp":     is_valid_icp,
+    "sui":     is_valid_sui,
+    "vechain": is_valid_vechain,
+    "zilliqa": is_valid_zilliqa,
 }
 
 
