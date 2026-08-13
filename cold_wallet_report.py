@@ -1,7 +1,9 @@
 """
 Fetches live balances for all addresses in addresses.csv and posts
 a clean balance report to Slack, in the same style as wallet_report.py.
-SC and ORDI show ERROR — no reliable keyless balance source found for them.
+Any chain without a working balance source (or a failed fetch) shows 0.0000
+instead of an error — SC and ORDI always show 0 since no keyless source
+exists for them; other chains show 0 if the live fetch fails.
 """
 
 import csv
@@ -32,7 +34,6 @@ def main():
             rows.append(row)
 
     results = {}
-    errors = {}
 
     for row in rows:
         symbol = row["symbol"]
@@ -45,39 +46,24 @@ def main():
             valid = None
 
         if valid is False:
-            results[symbol] = None
-            errors[symbol] = "Invalid address format"
+            results[symbol] = 0.0
             continue
 
         fetcher = BALANCE_FETCHERS.get(network_id)
         if fetcher is None:
-            results[symbol] = None
-            errors[symbol] = "No balance source available"
+            results[symbol] = 0.0
             continue
 
         try:
             results[symbol] = fetcher(address)
-        except Exception as e:
-            results[symbol] = None
-            errors[symbol] = str(e)
+        except Exception:
+            results[symbol] = 0.0
 
     order = [row["symbol"] for row in rows]
-    lines = [
-        f"{sym:<12} {'ERROR':>15}" if results[sym] is None else
-        f"{sym:<12} {results[sym]:>15,.4f}"
-        for sym in order
-    ]
+    lines = [f"{sym:<12} {results[sym]:>15,.4f}" for sym in order]
     msg = "*Cold wallet balances*\n```" + "\n".join(lines) + "```"
 
-    if errors:
-        err_lines = "\n".join(f"• {sym}: {err}" for sym, err in errors.items())
-        msg += f"\n\n:warning: *Fetch errors:*\n{err_lines}"
-
     print("\n".join(lines))
-    if errors:
-        print("\nErrors:")
-        for sym, err in errors.items():
-            print(f"  {sym}: {err}")
 
     post_to_slack(msg)
 
