@@ -142,7 +142,10 @@ def is_valid_nano(addr: str) -> bool:
     if not addr.startswith("nano_"):
         return False
     return len(addr) == 65
-
+    
+def is_valid_zilliqa(addr: str) -> bool:
+    """Zilliqa: bech32, prefix 'zil1', standard bech32 (not bech32m)."""
+    return _bech32_decode(addr, expected_hrp="zil")
 
 VALIDATORS = {
     "aptos":       is_valid_aptos,
@@ -157,6 +160,7 @@ VALIDATORS = {
     "sui":         is_valid_sui,
     "vechain":     is_valid_vechain,
     "nano":        is_valid_nano,
+    "zilliqa":     is_valid_zilliqa,
 }
 
 
