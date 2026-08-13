@@ -83,10 +83,6 @@ def is_valid_arweave(addr: str) -> bool:
     return re.match(r"^[A-Za-z0-9_-]+$", addr) is not None
 
 
-def is_valid_dymension(addr: str) -> bool:
-    return _bech32_decode(addr, expected_hrp="dym")
-
-
 def is_valid_multiversx(addr: str) -> bool:
     if len(addr) != 62:
         return False
@@ -159,7 +155,6 @@ def is_valid_nano(addr: str) -> bool:
 VALIDATORS = {
     "aptos":       is_valid_aptos,
     "arweave":     is_valid_arweave,
-    "dymension":   is_valid_dymension,
     "multiversx":  is_valid_multiversx,
     "flow":        is_valid_flow,
     "icp":         is_valid_icp,
