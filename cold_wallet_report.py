@@ -1,19 +1,20 @@
 """
-Fetches live balances for all addresses in addresses.csv and posts
-a clean balance report to Slack, in the same style as wallet_report.py.
-Any chain without a working balance source (or a failed fetch) shows 0.0000
-instead of an error — SC and ORDI always show 0 since no keyless source
-exists for them; other chains show 0 if the live fetch fails.
+Fetches live balances, compares against the most recent prior snapshot
+saved in balance_history.json, and posts a report (with day-over-day
+diffs) to Slack. Saves today's snapshot for tomorrow's comparison.
 """
 
 import csv
+import json
 import os
 import sys
+from datetime import datetime, timezone
 import requests
 from address_validators import validate_address
 from balance_fetchers import BALANCE_FETCHERS
 
 SLACK_WEBHOOK_URL = os.environ.get("SLACK_WEBHOOK_URL", "")
+HISTORY_FILE = "balance_history.json"
 
 
 def post_to_slack(text: str):
@@ -22,6 +23,25 @@ def post_to_slack(text: str):
         return
     r = requests.post(SLACK_WEBHOOK_URL, json={"text": text}, timeout=20)
     r.raise_for_status()
+
+
+def load_history():
+    if not os.path.exists(HISTORY_FILE):
+        return {}
+    with open(HISTORY_FILE, "r", encoding="utf-8") as f:
+        return json.load(f)
+
+
+def save_history(history):
+    with open(HISTORY_FILE, "w", encoding="utf-8") as f:
+        json.dump(history, f, indent=2, sort_keys=True)
+
+
+def most_recent_prior_date(history, today_str):
+    past_dates = [d for d in history.keys() if d < today_str]
+    if not past_dates:
+        return None
+    return max(past_dates)
 
 
 def main():
@@ -34,7 +54,6 @@ def main():
             rows.append(row)
 
     results = {}
-
     for row in rows:
         symbol = row["symbol"]
         network_id = row["network_id"]
@@ -59,13 +78,32 @@ def main():
         except Exception:
             results[symbol] = 0.0
 
+    today_str = datetime.now(timezone.utc).strftime("%Y-%m-%d")
+
+    history = load_history()
+    prior_date = most_recent_prior_date(history, today_str)
+    prior_balances = history.get(prior_date, {}) if prior_date else {}
+
     order = [row["symbol"] for row in rows]
-    lines = [f"{sym:<12} {results[sym]:>15,.4f}" for sym in order]
-    msg = "*Cold wallet balances*\n```" + "\n".join(lines) + "```"
+    lines = []
+    for sym in order:
+        current = results[sym]
+        line = f"{sym:<8} {current:>15,.4f}"
+        if prior_date and sym in prior_balances:
+            diff = current - prior_balances[sym]
+            sign = "+" if diff >= 0 else ""
+            line += f"  ({sign}{diff:,.4f})"
+        lines.append(line)
+
+    header = f"*Cold wallet balances* (vs {prior_date})" if prior_date else "*Cold wallet balances* (no prior snapshot yet)"
+    msg = f"{header}\n```" + "\n".join(lines) + "```"
 
     print("\n".join(lines))
 
     post_to_slack(msg)
+
+    history[today_str] = results
+    save_history(history)
 
 
 if __name__ == "__main__":
