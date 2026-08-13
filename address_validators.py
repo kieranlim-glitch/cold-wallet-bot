@@ -102,10 +102,6 @@ def is_valid_icp(addr: str) -> bool:
     return bool(principal_re.match(addr))
 
 
-def is_valid_manta(addr: str) -> bool:
-    return _evm_style_valid(addr)
-
-
 def is_valid_neo(addr: str) -> bool:
     if len(addr) != 34 or not addr.startswith("N"):
         return False
@@ -138,10 +134,6 @@ def is_valid_sui(addr: str) -> bool:
     return _is_hex(addr[2:], expected_len=64)
 
 
-def is_valid_theta(addr: str) -> bool:
-    return _evm_style_valid(addr)
-
-
 def is_valid_vechain(addr: str) -> bool:
     return _evm_style_valid(addr)
 
@@ -158,13 +150,11 @@ VALIDATORS = {
     "multiversx":  is_valid_multiversx,
     "flow":        is_valid_flow,
     "icp":         is_valid_icp,
-    "manta":       is_valid_manta,
     "neo":         is_valid_neo,
     "brc20":       is_valid_ordi_brc20,
     "siacoin":     is_valid_siacoin,
     "stacks":      is_valid_stacks,
     "sui":         is_valid_sui,
-    "theta":       is_valid_theta,
     "vechain":     is_valid_vechain,
     "nano":        is_valid_nano,
 }
