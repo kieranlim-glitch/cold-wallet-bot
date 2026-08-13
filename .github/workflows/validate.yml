@@ -13,5 +13,7 @@ jobs:
           python-version: "3.11"
       - name: Install dependencies
         run: pip install requests
-      - name: Run debug script
-        run: python debug_balances.py
+      - name: Run balance report
+        run: python cold_wallet_report.py addresses.csv
+        env:
+          SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
