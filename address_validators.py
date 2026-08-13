@@ -10,7 +10,6 @@ import re
 
 
 HEX_RE = re.compile(r"^[0-9a-fA-F]+$")
-BASE58_RE = re.compile(r"^[1-9A-HJ-NP-Za-km-z]+$")
 BECH32_CHARSET = "qpzry9x8gf2tvdw0s3jn54khce6mua7l"
 
 
@@ -90,12 +89,6 @@ def is_valid_icp(addr: str) -> bool:
     return bool(principal_re.match(addr))
 
 
-def is_valid_sui(addr: str) -> bool:
-    if not addr.startswith("0x"):
-        return False
-    return _is_hex(addr[2:], expected_len=64)
-
-
 def is_valid_vechain(addr: str) -> bool:
     return _evm_style_valid(addr)
 
@@ -109,7 +102,6 @@ VALIDATORS = {
     "aptos":   is_valid_aptos,
     "arweave": is_valid_arweave,
     "icp":     is_valid_icp,
-    "sui":     is_valid_sui,
     "vechain": is_valid_vechain,
     "zilliqa": is_valid_zilliqa,
 }
