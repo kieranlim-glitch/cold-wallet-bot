@@ -1,8 +1,6 @@
 name: Cold Wallet Balances
 on:
   workflow_dispatch:
-  schedule:
-    - cron: '* * * * *'
 
 permissions:
   contents: write
