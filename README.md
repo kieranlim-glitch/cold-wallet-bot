@@ -1,5 +1,3 @@
-# cold-wallet-bot
-
 # Cold Wallet Bot
 
 Tracks daily balances for a set of cold wallet addresses across multiple chains,
