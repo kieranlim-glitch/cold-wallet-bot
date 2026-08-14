@@ -4,7 +4,6 @@ saved in balance_history.json, and posts a report (with day-over-day
 absolute and percentage diffs) to Slack. Saves today's snapshot for
 tomorrow's comparison.
 """
-
 import csv
 import json
 import os
@@ -15,15 +14,19 @@ from address_validators import validate_address
 from balance_fetchers import BALANCE_FETCHERS
 
 SLACK_WEBHOOK_URL = os.environ.get("SLACK_WEBHOOK_URL", "")
+SLACK_WEBHOOK_URL_2 = os.environ.get("SLACK_WEBHOOK_URL_2", "")
 HISTORY_FILE = "balance_history.json"
 
 
 def post_to_slack(text: str):
-    if not SLACK_WEBHOOK_URL:
-        print("No SLACK_WEBHOOK_URL set, skipping Slack post.")
-        return
-    r = requests.post(SLACK_WEBHOOK_URL, json={"text": text}, timeout=20)
-    r.raise_for_status()
+    for url in [SLACK_WEBHOOK_URL, SLACK_WEBHOOK_URL_2]:
+        if not url:
+            continue
+        try:
+            r = requests.post(url, json={"text": text}, timeout=20)
+            r.raise_for_status()
+        except Exception as e:
+            print(f"Failed to post to Slack webhook: {e}")
 
 
 def load_history():
@@ -47,44 +50,35 @@ def most_recent_prior_date(history, today_str):
 
 def main():
     csv_path = sys.argv[1] if len(sys.argv) > 1 else "addresses.csv"
-
     rows = []
     with open(csv_path, newline="", encoding="utf-8") as f:
         reader = csv.DictReader(f)
         for row in reader:
             rows.append(row)
-
     results = {}
     for row in rows:
         symbol = row["symbol"]
         network_id = row["network_id"]
         address = row["address"]
-
         try:
             valid = validate_address(network_id, address)
         except ValueError:
             valid = None
-
         if valid is False:
             results[symbol] = 0.0
             continue
-
         fetcher = BALANCE_FETCHERS.get(network_id)
         if fetcher is None:
             results[symbol] = 0.0
             continue
-
         try:
             results[symbol] = fetcher(address)
         except Exception:
             results[symbol] = 0.0
-
     today_str = datetime.now(timezone.utc).strftime("%Y-%m-%d")
-
     history = load_history()
     prior_date = most_recent_prior_date(history, today_str)
     prior_balances = history.get(prior_date, {}) if prior_date else {}
-
     order = [row["symbol"] for row in rows]
     lines = []
     for sym in order:
@@ -101,14 +95,10 @@ def main():
                 pct_str = "N/A"
             line += f"  ({sign}{diff:,.4f}, {pct_str})"
         lines.append(line)
-
     header = f"*Cold wallet balances* (vs {prior_date})" if prior_date else "*Cold wallet balances* (no prior snapshot yet)"
     msg = f"{header}\n```" + "\n".join(lines) + "```"
-
     print("\n".join(lines))
-
     post_to_slack(msg)
-
     history[today_str] = results
     save_history(history)
 
