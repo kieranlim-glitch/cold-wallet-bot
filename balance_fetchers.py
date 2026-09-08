@@ -1,12 +1,11 @@
 """
 Balance fetcher for cold-wallet-bot addresses.
-Covers: APT, AR, ICP, SUI, VET, ZIL
+Covers: APT, AR, ICP, SUI, VET
 """
 
 import requests
 
 HEADERS = {"User-Agent": "Mozilla/5.0 (ColdWalletBot/1.0)"}
-BECH32_CHARSET = "qpzry9x8gf2tvdw0s3jn54khce6mua7l"
 
 
 def safe_get_json(url, timeout=25, headers=None):
@@ -59,92 +58,4 @@ def get_icp_balance(account_id: str) -> float:
 def get_sui_balance(address: str) -> float:
     query = """
     query GetBalance($owner: SuiAddress!) {
-      address(address: $owner) {
-        balance(type: "0x2::sui::SUI") {
-          totalBalance
-        }
-      }
-    }
-    """
-    payload = {"query": query, "variables": {"owner": address}}
-    out = safe_post_json("https://sui-mainnet.mystenlabs.com/graphql", payload)
-    if "errors" in out:
-        raise RuntimeError(f"Sui GraphQL error: {out['errors']}")
-    bal = out["data"]["address"]["balance"]
-    mist = int(bal["totalBalance"]) if bal else 0
-    return mist / 1e9
-
-
-# ── VET (VeChain) ────────────────────────────────────────────────────────────
-
-def get_vet_balance(address: str) -> float:
-    url = f"https://mainnet.vecha.in/accounts/{address}"
-    data = safe_get_json(url)
-    wei = int(data["balance"], 16)
-    return wei / 1e18
-
-
-# ── ZIL (Zilliqa) ────────────────────────────────────────────────────────────
-
-def _convertbits(data, frombits, tobits, pad=True):
-    acc = 0
-    bits = 0
-    ret = []
-    maxv = (1 << tobits) - 1
-    max_acc = (1 << (frombits + tobits - 1)) - 1
-    for value in data:
-        if value < 0 or (value >> frombits):
-            return None
-        acc = ((acc << frombits) | value) & max_acc
-        bits += frombits
-        while bits >= tobits:
-            bits -= tobits
-            ret.append((acc >> bits) & maxv)
-    if pad:
-        if bits:
-            ret.append((acc << (tobits - bits)) & maxv)
-    elif bits >= frombits or ((acc << (tobits - bits)) & maxv):
-        return None
-    return ret
-
-
-def _zil_bech32_to_hex(addr: str) -> str:
-    if not addr.startswith("zil1"):
-        raise ValueError("Not a Zilliqa bech32 address")
-    payload_str = addr[4:]
-    try:
-        data = [BECH32_CHARSET.index(c) for c in payload_str]
-    except ValueError:
-        raise ValueError("Invalid bech32 characters in address")
-    payload = data[:-6]
-    raw_bytes = _convertbits(payload, 5, 8, pad=False)
-    if raw_bytes is None or len(raw_bytes) != 20:
-        raise ValueError("Decoded Zilliqa address is not 20 bytes")
-    return bytes(raw_bytes).hex()
-
-
-def get_zil_balance(address: str) -> float:
-    hex_addr = _zil_bech32_to_hex(address)
-    payload = {
-        "id": "1",
-        "jsonrpc": "2.0",
-        "method": "GetBalance",
-        "params": [hex_addr],
-    }
-    out = safe_post_json("https://api.zilliqa.com/", payload)
-    if "error" in out:
-        if "Account is not created" in str(out["error"]):
-            return 0.0
-        raise RuntimeError(f"Zilliqa RPC error: {out['error']}")
-    qa = int(out["result"]["balance"])
-    return qa / 1e12
-
-
-BALANCE_FETCHERS = {
-    "aptos":   get_apt_balance,
-    "arweave": get_ar_balance,
-    "icp":     get_icp_balance,
-    "sui":     get_sui_balance,
-    "vechain": get_vet_balance,
-    "zilliqa": get_zil_balance,
-}
+      address(address:
