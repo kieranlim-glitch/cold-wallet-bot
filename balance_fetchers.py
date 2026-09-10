@@ -56,37 +56,37 @@ def get_icp_balance(account_id: str) -> float:
 # ── SUI ──────────────────────────────────────────────────────────────────────
 
 def get_sui_balance(address: str) -> float:
-    url = "https://fullnode.mainnet.sui.io:443"
-    payload = {
-        "jsonrpc": "2.0",
-        "id": 1,
-        "method": "suix_getBalance",
-        "params": [address],  # add a 2nd param (coin type) here if you need a non-SUI coin
+    query = """
+    query GetBalance($owner: SuiAddress!) {
+      address(address: $owner) {
+        balance(type: "0x2::sui::SUI") {
+          totalBalance
+        }
+      }
     }
-    out = safe_post_json(url, payload)
-    result = out.get("result", {})
-    if "error" in out:
-        raise RuntimeError(f"SUI RPC error: {out['error']}")
-    total_balance = int(result["totalBalance"])
-    return total_balance / 1e9  # SUI uses 9 decimals
+    """
+    payload = {"query": query, "variables": {"owner": address}}
+    out = safe_post_json("https://sui-mainnet.mystenlabs.com/graphql", payload)
+    if "errors" in out:
+        raise RuntimeError(f"Sui GraphQL error: {out['errors']}")
+    bal = out["data"]["address"]["balance"]
+    mist = int(bal["totalBalance"]) if bal else 0
+    return mist / 1e9
 
 
 # ── VET (VeChain) ────────────────────────────────────────────────────────────
 
 def get_vet_balance(address: str) -> float:
-    url = f"https://mainnet.veblocks.net/accounts/{address}"
+    url = f"https://mainnet.vecha.in/accounts/{address}"
     data = safe_get_json(url)
-    # VeChain node API returns balance as a hex string in wei (18 decimals)
-    balance_wei = int(data["balance"], 16)
-    return balance_wei / 1e18
+    wei = int(data["balance"], 16)
+    return wei / 1e18
 
-
-# ── Registry used by cold_wallet_report.py ───────────────────────────────────
 
 BALANCE_FETCHERS = {
-    "APT": get_apt_balance,
-    "AR": get_ar_balance,
-    "ICP": get_icp_balance,
-    "SUI": get_sui_balance,
-    "VET": get_vet_balance,
+    "aptos":   get_apt_balance,
+    "arweave": get_ar_balance,
+    "icp":     get_icp_balance,
+    "sui":     get_sui_balance,
+    "vechain": get_vet_balance,
 }
