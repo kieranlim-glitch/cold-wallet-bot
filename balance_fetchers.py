@@ -56,6 +56,37 @@ def get_icp_balance(account_id: str) -> float:
 # ── SUI ──────────────────────────────────────────────────────────────────────
 
 def get_sui_balance(address: str) -> float:
-    query = """
-    query GetBalance($owner: SuiAddress!) {
-      address(address:
+    url = "https://fullnode.mainnet.sui.io:443"
+    payload = {
+        "jsonrpc": "2.0",
+        "id": 1,
+        "method": "suix_getBalance",
+        "params": [address],  # add a 2nd param (coin type) here if you need a non-SUI coin
+    }
+    out = safe_post_json(url, payload)
+    result = out.get("result", {})
+    if "error" in out:
+        raise RuntimeError(f"SUI RPC error: {out['error']}")
+    total_balance = int(result["totalBalance"])
+    return total_balance / 1e9  # SUI uses 9 decimals
+
+
+# ── VET (VeChain) ────────────────────────────────────────────────────────────
+
+def get_vet_balance(address: str) -> float:
+    url = f"https://mainnet.veblocks.net/accounts/{address}"
+    data = safe_get_json(url)
+    # VeChain node API returns balance as a hex string in wei (18 decimals)
+    balance_wei = int(data["balance"], 16)
+    return balance_wei / 1e18
+
+
+# ── Registry used by cold_wallet_report.py ───────────────────────────────────
+
+BALANCE_FETCHERS = {
+    "APT": get_apt_balance,
+    "AR": get_ar_balance,
+    "ICP": get_icp_balance,
+    "SUI": get_sui_balance,
+    "VET": get_vet_balance,
+}
